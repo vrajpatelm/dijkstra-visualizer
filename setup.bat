@@ -56,3 +56,4 @@ if "%1"=="--run" (
     echo [INFO] Launching server on port 8000 ...
     python manage.py runserver 8000
 )
+

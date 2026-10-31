@@ -51,3 +51,4 @@ if ($RunServer) {
     Write-Host "[INFO] Starting Django server on http://127.0.0.1:8000/ ..." -ForegroundColor Cyan
     & $venvPython manage.py runserver 8000
 }
+
