@@ -1,0 +1,422 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dijkstra Visualizer — Interactive Graph Pathfinding</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔬</text></svg>">
+  <link rel="stylesheet" href="{% static 'dijkstra_app/css/style.css' %}">
+</head>
+<body>
+
+  <!-- TOP NAVIGATION BAR -->
+  <header class="nav-header">
+    <div class="brand">
+      <div class="brand-radar">
+        <span class="radar-ping"></span>
+        <span class="brand-icon">🔬</span>
+      </div>
+      <div class="brand-info">
+        <span class="brand-title">DIJKSTRA <span class="brand-accent">VISUALIZER</span></span>
+        <span class="brand-status"><span class="status-dot"></span>GRAPH ENGINE ACTIVE</span>
+      </div>
+    </div>
+
+    <div class="route-search-bar">
+      <div class="search-field source-field">
+        <span class="field-icon green-dot"></span>
+        <select id="source-select" aria-label="Source Node">
+          <option value="">Source Node...</option>
+        </select>
+      </div>
+
+      <button id="swap-route-btn" class="icon-action-btn" title="Swap Source & Target">⇄</button>
+
+      <div class="search-field target-field">
+        <span class="field-icon red-dot"></span>
+        <select id="target-select" aria-label="Target Node">
+          <option value="">Target Node...</option>
+        </select>
+      </div>
+
+      <button id="find-route-btn" class="btn btn-primary">
+        <span class="btn-icon">⚡</span> Find Shortest Path
+      </button>
+    </div>
+
+    <div class="quick-tools">
+      <button id="random-btn" class="btn btn-secondary" title="Generate random graph and run Dijkstra">
+        <span class="btn-icon">🎲</span> Random Graph
+      </button>
+
+      <div class="presets-dropdown-wrapper">
+        <select id="presets-select" class="presets-dropdown">
+          <option value="" disabled selected>Preset Graphs</option>
+          <option value="us-interstate">🇺🇸 US Interstate</option>
+          <option value="euro-transit">🇪🇺 Euro Network</option>
+          <option value="tokyo-hub">🇯🇵 Tokyo Transit</option>
+          <option value="dense-cluster">🌐 Dense 10-Node Web</option>
+        </select>
+      </div>
+
+      <button id="present-btn" class="btn btn-secondary" title="Open Algorithm Explainer">
+        <span class="btn-icon">🎓</span> Present
+      </button>
+
+      <div class="export-dropdown-wrapper">
+        <button id="export-btn" class="btn btn-outline" title="Export / Import Graph">
+          <span class="btn-icon">💾</span> Export
+        </button>
+      </div>
+
+      <button id="clear-btn" class="btn btn-outline" title="Clear Graph">
+        <span class="btn-icon">🧹</span> Clear
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN VIEWPORT -->
+  <main class="app-container">
+
+    <!-- SIDEBAR HUD -->
+    <aside class="sidebar-hud">
+      <div class="hud-tabs">
+        <button class="hud-tab active" data-tab="tab-directions">
+          <span>📊</span> Results
+        </button>
+        <button class="hud-tab" data-tab="tab-algorithm">
+          <span>⚡</span> Algorithm HUD
+        </button>
+      </div>
+
+      <!-- TAB 1: PATH RESULTS -->
+      <section id="tab-directions" class="tab-content active">
+        <div id="route-hero-card" class="route-hero-card">
+          <div class="hero-badge" id="hero-badge">READY TO EXPLORE</div>
+          <div class="hero-distance-box">
+            <span class="hero-distance-val" id="hero-dist-val">—</span>
+            <span class="hero-distance-unit" id="hero-dist-unit">total weight</span>
+          </div>
+          <div class="hero-meta" id="hero-meta">Select source & target nodes or click Random Graph</div>
+        </div>
+
+        <div class="directions-section">
+          <div class="section-heading">
+            <span>PATH SEGMENTS</span>
+            <span id="itinerary-count" class="badge-count">0 edges</span>
+          </div>
+          <div id="directions-list" class="directions-list">
+            <div class="empty-state">
+              <span class="empty-icon">🔍</span>
+              <p>No path computed yet.<br>Click <strong>Random Graph</strong> or select nodes above to find shortest path.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ADJACENCY LIST -->
+        <div class="directions-section">
+          <div class="section-heading">
+            <span>ADJACENCY LIST</span>
+            <span id="adj-count" class="badge-count">0</span>
+          </div>
+          <div id="adj-list-container" class="adj-list-container">
+            <div class="empty-state-sm">No graph data</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: ALGORITHM LIVE TRACE & QUEUE -->
+      <section id="tab-algorithm" class="tab-content">
+        <div class="algo-status-bar">
+          <span class="algo-badge" id="algo-state-badge">IDLE</span>
+          <span class="algo-step-text" id="algo-step-counter">Step 0 / 0</span>
+        </div>
+
+        <!-- PLAYBACK CONTROLS -->
+        <div class="playback-card">
+          <div class="playback-buttons">
+            <button id="step-first" class="ctrl-btn" title="First Step">⏮</button>
+            <button id="step-prev" class="ctrl-btn" title="Previous Step">◀</button>
+            <button id="step-play" class="ctrl-btn ctrl-btn-main" title="Play / Pause">▶</button>
+            <button id="step-next" class="ctrl-btn" title="Next Step">▶|</button>
+            <button id="step-last" class="ctrl-btn" title="Last Step">⏭</button>
+          </div>
+
+          <div class="scrubber-row">
+            <input type="range" id="step-slider" min="0" max="0" value="0" class="step-slider">
+          </div>
+
+          <div class="speed-row">
+            <span class="speed-label">Speed:</span>
+            <input type="range" id="speed-slider" min="150" max="1800" value="850" step="50">
+            <span id="speed-indicator" class="speed-value">1.0x</span>
+          </div>
+        </div>
+
+        <!-- EXPLANATION CARD -->
+        <div class="explanation-card">
+          <div class="card-label">CURRENT ALGORITHM ACTION</div>
+          <p id="step-explanation" class="step-explanation-text">
+            Algorithm is idle. Click "Find Shortest Path" to explore graph relaxation steps.
+          </p>
+        </div>
+
+        <!-- LIVE MATHEMATICAL RELAXATION FORMULA DISPLAY -->
+        <div id="formula-card" class="formula-card" style="display: none;">
+          <div class="card-label">EDGE RELAXATION FORMULA</div>
+          <div id="formula-content" class="formula-content">
+            dist[v] = min(old, dist[u] + weight)
+          </div>
+        </div>
+
+        <!-- NEIGHBOR EVALUATIONS FOR CURRENT STEP -->
+        <div id="neighbors-eval-card" class="hud-panel" style="display: none;">
+          <div class="section-heading">
+            <span>NEIGHBOR EVALUATION</span>
+            <span id="eval-count" class="badge-count">0</span>
+          </div>
+          <div id="eval-list" class="eval-list"></div>
+        </div>
+
+        <!-- PRIORITY QUEUE (MIN-HEAP) -->
+        <div class="hud-panel">
+          <div class="section-heading">
+            <span>PRIORITY QUEUE (MIN-HEAP)</span>
+            <span id="pq-count" class="badge-count">0</span>
+          </div>
+          <div id="pq-container" class="pq-card-list">
+            <div class="empty-state-sm">Queue is empty</div>
+          </div>
+        </div>
+
+        <!-- DISTANCE TABLE -->
+        <div class="hud-panel">
+          <div class="section-heading">
+            <span>SHORTEST DISTANCE TABLE</span>
+          </div>
+          <div class="table-container">
+            <table class="dist-matrix-table">
+              <thead>
+                <tr>
+                  <th>Node</th>
+                  <th>Distance</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="dist-table-body">
+                <tr><td colspan="3" class="table-empty">No graph data</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </aside>
+
+    <!-- CANVAS AREA -->
+    <div class="map-viewport" id="map-viewport">
+      <canvas id="map-canvas"></canvas>
+
+      <!-- LIVE HUD NARRATIVE OVERLAY ON CANVAS -->
+      <div class="canvas-hud-banner" id="canvas-hud-banner" style="display: none;">
+        <div class="hud-banner-icon" id="hud-banner-icon">⚡</div>
+        <div class="hud-banner-content">
+          <div class="hud-banner-title" id="hud-banner-title">Step 0 / 0</div>
+          <div class="hud-banner-subtitle" id="hud-banner-subtitle">Preparing algorithm...</div>
+        </div>
+      </div>
+
+      <!-- FLOATING TOOLBAR: MODES -->
+      <nav class="floating-toolbar">
+        <button class="tool-btn active" data-mode="select" id="tool-select" title="Move Nodes, Pan Canvas. Double-click node to rename.">
+          <span class="tool-icon">🖐️</span>
+          <span class="tool-name">Move / Pan</span>
+        </button>
+        <button class="tool-btn" data-mode="add-city" id="tool-add-city" title="Click anywhere to add a new node">
+          <span class="tool-icon">⊕</span>
+          <span class="tool-name">+ Node</span>
+        </button>
+        <button class="tool-btn" data-mode="add-road" id="tool-add-road" title="Click Node A, then Node B to connect">
+          <span class="tool-icon">🔗</span>
+          <span class="tool-name">+ Edge</span>
+        </button>
+        <button class="tool-btn" data-mode="delete" id="tool-delete" title="Click a node or edge to remove it">
+          <span class="tool-icon">🗑️</span>
+          <span class="tool-name">Delete</span>
+        </button>
+      </nav>
+
+      <!-- FLOATING VIEW CONTROLS -->
+      <div class="floating-view-controls">
+        <button id="view-zoom-in" class="view-btn" title="Zoom In">+</button>
+        <button id="view-zoom-out" class="view-btn" title="Zoom Out">−</button>
+        <button id="view-reset" class="view-btn" title="Reset View">⛶</button>
+        <button id="sfx-toggle" class="view-btn" title="Toggle Sound FX">🔊</button>
+      </div>
+
+      <!-- GRAPH STATS OVERLAY -->
+      <div class="map-telemetry">
+        <span id="telemetry-counts">V = 0 | E = 0</span>
+        <span class="telemetry-separator">|</span>
+        <span id="telemetry-coords">Hover over graph</span>
+      </div>
+
+      <!-- MODE HINT BANNER -->
+      <div class="canvas-banner" id="canvas-banner">
+        <span class="banner-icon" id="banner-icon">💡</span>
+        <span class="banner-text" id="banner-text">Move mode: Drag nodes to rearrange. Drag canvas to pan. Double-click a node to rename.</span>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- EDIT / ADD EDGE MODAL -->
+  <div id="road-modal" class="modal-backdrop" style="display: none;">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <span class="modal-icon">🔗</span>
+        <h3 class="modal-title" id="road-modal-title">Edge Details</h3>
+      </div>
+      <div class="modal-body">
+        <div class="modal-route-preview">
+          <span id="modal-city-from" class="route-city-tag">Node A</span>
+          <span class="route-arrow">━━ → ━━</span>
+          <span id="modal-city-to" class="route-city-tag">Node B</span>
+        </div>
+
+        <div class="form-group">
+          <label for="modal-road-name">Edge Label</label>
+          <input type="text" id="modal-road-name" value="e1" placeholder="e.g. e1, AB, link">
+        </div>
+
+        <div class="form-group">
+          <label for="modal-road-weight">Weight (cost)</label>
+          <input type="number" id="modal-road-weight" min="1" max="9999" value="10">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="modal-delete-btn" class="btn btn-outline" style="margin-right:auto;display:none;color:var(--accent-red);">Delete Edge</button>
+        <button id="modal-cancel-btn" class="btn btn-outline">Cancel</button>
+        <button id="modal-confirm-btn" class="btn btn-primary">Save Edge</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- EDIT / RENAME NODE MODAL -->
+  <div id="city-modal" class="modal-backdrop" style="display: none;">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <span class="modal-icon">⊕</span>
+        <h3 class="modal-title">Edit Node</h3>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="city-modal-name">Node Name</label>
+          <input type="text" id="city-modal-name" placeholder="e.g. A, Seattle, v1">
+        </div>
+
+        <div class="form-group">
+          <label for="city-modal-code">Short Code (3-4 chars)</label>
+          <input type="text" id="city-modal-code" maxlength="4" placeholder="e.g. A, SEA, v1">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="city-modal-delete-btn" class="btn btn-outline" style="margin-right:auto;color:var(--accent-red);">Delete Node</button>
+        <button id="city-modal-cancel-btn" class="btn btn-outline">Cancel</button>
+        <button id="city-modal-save-btn" class="btn btn-primary">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PRESENTATION MODE / THEORY MODAL -->
+  <div id="presentation-modal" class="modal-backdrop" style="display: none;">
+    <div class="modal-dialog presentation-dialog">
+      <div class="modal-header">
+        <span class="modal-icon">🎓</span>
+        <h3 class="modal-title">Dijkstra's Algorithm — Presentation Guide</h3>
+      </div>
+      <div class="modal-body presentation-body">
+        <div class="present-card">
+          <h4>💡 What is Dijkstra's Algorithm?</h4>
+          <p>
+            An optimal <strong>greedy algorithm</strong> published by Edsger W. Dijkstra in 1959. 
+            It finds the single-source shortest paths to all reachable vertices in a weighted graph with 
+            <strong>non-negative edge weights</strong>.
+          </p>
+        </div>
+
+        <div class="present-card">
+          <h4>⚡ How It Works (Step-by-Step)</h4>
+          <ol class="present-steps">
+            <li><strong>Initialize:</strong> Set <code>dist[source] = 0</code>, all others to <code>∞</code>. Push <code>(0, source)</code> into a Min-Heap.</li>
+            <li><strong>Extract Min:</strong> Pop the unvisited node <code>u</code> with smallest known distance. Mark <code>u</code> as settled (finalized).</li>
+            <li><strong>Edge Relaxation:</strong> For each neighbor <code>v</code> of <code>u</code>, check:
+              <div class="math-callout">
+                <code>if dist[u] + weight(u, v) &lt; dist[v]:</code><br>
+                <code>&nbsp;&nbsp;dist[v] = dist[u] + weight(u, v)</code><br>
+                <code>&nbsp;&nbsp;previous[v] = u</code>
+              </div>
+            </li>
+            <li><strong>Repeat:</strong> Continue until the target is popped or the queue is empty.</li>
+          </ol>
+        </div>
+
+        <div class="present-card">
+          <h4>🔑 Key Properties</h4>
+          <ul class="present-steps">
+            <li><strong>Greedy Choice:</strong> Always processes the closest unvisited node first.</li>
+            <li><strong>Optimal Substructure:</strong> Sub-paths of shortest paths are themselves shortest.</li>
+            <li><strong>No Negative Weights:</strong> Assumes once a node is settled, no shorter path can be found to it.</li>
+          </ul>
+        </div>
+
+        <div class="present-grid-two">
+          <div class="present-card">
+            <h4>⏱️ Complexity</h4>
+            <p><strong>Time:</strong> <code>O((V + E) log V)</code> with binary min-heap.</p>
+            <p><strong>Space:</strong> <code>O(V)</code> for distances, predecessors, and queue.</p>
+          </div>
+          <div class="present-card">
+            <h4>⚠️ Limitations</h4>
+            <p>
+              <strong>Negative weights break the algorithm.</strong>
+              Use Bellman-Ford for graphs with negative edges.
+              Dijkstra's is optimal for non-negative weighted graphs.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="presentation-close-btn" class="btn btn-primary">Start Interactive Demo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- EXPORT / IMPORT MODAL -->
+  <div id="export-modal" class="modal-backdrop" style="display: none;">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <span class="modal-icon">💾</span>
+        <h3 class="modal-title">Export / Import Graph</h3>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Graph JSON (copy to save, paste to import)</label>
+          <textarea id="export-textarea" rows="10" style="width:100%;background:var(--bg-primary);border:1px solid var(--border-medium);border-radius:var(--radius-sm);color:#fff;padding:10px;font-family:var(--font-mono);font-size:11px;resize:vertical;"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="export-copy-btn" class="btn btn-outline">📋 Copy</button>
+        <button id="export-import-btn" class="btn btn-primary">📥 Import</button>
+        <button id="export-close-btn" class="btn btn-outline">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- APPLICATION SCRIPTS -->
+  <script src="{% static 'dijkstra_app/js/app.js' %}"></script>
+</body>
+</html>
